@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    proxyflow_lib::run()
+    xnetify_lib::run()
 }

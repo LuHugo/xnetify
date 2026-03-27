@@ -1,0 +1,1 @@
+export type SettingsSidebarItem = "general" | "connection" | "apps" | "proxies";

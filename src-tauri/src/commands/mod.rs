@@ -510,28 +510,53 @@ pub async fn test_http_async(
 pub async fn test_socks_async(
     host: &str,
     port: u16,
-    _timeout_secs: u64,
+    timeout_secs: u64,
     _test_urls: Vec<String>,
 ) -> ProxyTestResult {
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
     
     let addr = format!("{}:{}", host, port);
     let start = Instant::now();
     
-    match tokio::net::TcpStream::connect(&addr).await {
-        Ok(mut stream) => {
+    let connect_result = tokio::time::timeout(
+        Duration::from_secs(timeout_secs),
+        tokio::net::TcpStream::connect(&addr)
+    ).await;
+    
+    match connect_result {
+        Ok(Ok(mut stream)) => {
             let greeting = [0x05, 0x01, 0x00];
-            if let Err(_) = tokio::io::AsyncWriteExt::write_all(&mut stream, &greeting).await {
-                return ProxyTestResult {
-                    success: false,
-                    latency_ms: None,
-                    error: Some("Failed to send greeting".to_string()),
-                };
+            let write_result = tokio::time::timeout(
+                Duration::from_secs(3),
+                tokio::io::AsyncWriteExt::write_all(&mut stream, &greeting)
+            ).await;
+            
+            match write_result {
+                Err(_) => {
+                    return ProxyTestResult {
+                        success: false,
+                        latency_ms: None,
+                        error: Some("Write timed out".to_string()),
+                    };
+                }
+                Ok(Err(_)) => {
+                    return ProxyTestResult {
+                        success: false,
+                        latency_ms: None,
+                        error: Some("Failed to send greeting".to_string()),
+                    };
+                }
+                Ok(Ok(_)) => {}
             }
             
             let mut resp = [0u8; 2];
-            match tokio::io::AsyncReadExt::read_exact(&mut stream, &mut resp).await {
-                Ok(_) => {
+            let read_result = tokio::time::timeout(
+                Duration::from_secs(3),
+                tokio::io::AsyncReadExt::read_exact(&mut stream, &mut resp)
+            ).await;
+            
+            match read_result {
+                Ok(Ok(_)) => {
                     if resp[0] == 0x05 && resp[1] == 0x00 {
                         return ProxyTestResult {
                             success: true,
@@ -546,19 +571,31 @@ pub async fn test_socks_async(
                         };
                     }
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     return ProxyTestResult {
                         success: false,
                         latency_ms: None,
                         error: Some(format!("Read failed: {}", e)),
                     };
                 }
+                Err(_) => {
+                    return ProxyTestResult {
+                        success: false,
+                        latency_ms: None,
+                        error: Some("Read timed out".to_string()),
+                    };
+                }
             }
         }
-        Err(e) => ProxyTestResult {
+        Ok(Err(e)) => ProxyTestResult {
             success: false,
             latency_ms: None,
             error: Some(format!("Connect failed: {}", e)),
+        },
+        Err(_) => ProxyTestResult {
+            success: false,
+            latency_ms: None,
+            error: Some(format!("Connection timed out after {}s", timeout_secs)),
         },
     }
 }
@@ -806,7 +843,7 @@ pub fn set_system_proxy_impl(port: u16, state: &ProxyStatus) -> Result<String, S
             .output();
         
         let _ = Command::new("networksetup")
-            .args(["-setsocksfirewallproxy", service, "127.0.0.1", &port.to_string()])
+            .args(["-setsocksfirewallproxy", service, "127.0.0.1", "7891"])
             .output();
 
         success_count += 1;

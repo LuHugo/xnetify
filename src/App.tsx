@@ -1,119 +1,135 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
-import StatusCard from "./components/StatusCard";
-import { Toaster } from "./components/ui/sonner";
+import { Toaster } from "@/components/ui/sonner";
 import { useAppStore } from "./store";
-import NewApp from "./components/NewApp";
-import Settings from "./components/settings/index";
-import { Switch } from "./components/ui/switch";
-import { Item, ItemActions, ItemContent, ItemHeader } from "./components/ui/item";
-import { cn } from "./lib/utils";
-
+import { Shield, Lock, Unlock, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ModeSwitch } from "./components/ModeSwitch";
+import { TimeRules } from "./components/TimeRules";
+import { UrlRules } from "./components/UrlRules";
+import { RecommendedSites } from "./components/RecommendedSites";
+import { TeenDashboard } from "./components/TeenDashboard";
+import { TunToggle } from "./components/TunToggle";
 
 function App() {
   const {
-    apps,
-    manualApps,
-    lastUpdate,
-    shellType,
-    setShellType,
-    silentTestProxies,
-    detectProxies,
-    openTerminal,
     proxyEnabled,
-    proxyPort,
     toggleProxy,
     checkProxyStatus,
-    checkProxyChanges,
+    mode,
+    setMode,
   } = useAppStore();
 
   useEffect(() => {
-    const isWindows = navigator.userAgent.includes("Windows");
-    setShellType(isWindows ? "powershell" : "bash");
-  }, [setShellType]);
-
-  useEffect(() => {
-    detectProxies();
     checkProxyStatus();
-    const interval = setInterval(() => {
-      silentTestProxies();
-    }, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [detectProxies, silentTestProxies, checkProxyStatus]);
-
-  useEffect(() => {
-    if (!proxyEnabled) return;
-
-    const checkInterval = setInterval(async () => {
-      const changes = await checkProxyChanges();
-      if (changes.length > 0) {
-        const change = changes[0];
-        toast.warning(`代理被其他应用修改: ${change.service} -> ${change.changedBy}`);
-      }
-    }, 30 * 1000);
-
-    return () => clearInterval(checkInterval);
-  }, [proxyEnabled, checkProxyChanges]);
-
-  const handleOpenTerminal = async (app: Parameters<typeof openTerminal>[0]) => {
-    try {
-      await openTerminal(app);
-      toast.success(`已为 ${app.name} 打开终端`);
-    } catch {
-      toast.error("打开终端失败");
-    }
-  };
-
-  const displayApps = manualApps.length > 0 ? manualApps : apps;
+  }, [checkProxyStatus]);
 
   const handleProxySwitch = async (checked: boolean) => {
     try {
       await toggleProxy(checked);
-      toast.success(checked ? "系统代理已开启" : "系统代理已关闭");
+      toast.success(checked ? "守护已开启" : "守护已关闭");
     } catch {
-      toast.error(checked ? "开启代理失败" : "关闭代理失败");
+      toast.error("操作失败");
     }
   };
 
+  const handleSwitchToTeen = async () => {
+    await setMode('teen');
+    toast.success("已切换到成长模式");
+  };
+
+  const isProtected = mode === 'teen';
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <Item variant="muted">
-            <ItemContent>
-              <ItemHeader>开启代理 (端口 {proxyPort})</ItemHeader>
-            </ItemContent>
-            <ItemActions>
-              <Switch 
-                checked={proxyEnabled}
-                onCheckedChange={handleProxySwitch} 
-                className={cn(proxyEnabled && "data-checked:bg-green-500")}
-              />
-            </ItemActions>
-          </Item>
-        </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Proxies</h1>
-            <p className="text-sm text-muted-foreground">Auto setup terminal</p>
-          </div>
-          <div>
-            <NewApp />
-            <Settings />
-          </div>
-        </div>
+      {isProtected ? (
+        <TeenDashboard />
+      ) : (
+        <>
+          <header className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/10">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <span className="font-medium">成长守护</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <ThemeToggle />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSwitchToTeen}
+                className="gap-2"
+              >
+                <Sun className="h-4 w-4" />
+                返回成长模式
+              </Button>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${proxyEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-muted'}`} />
+                <span className={`text-sm ${proxyEnabled ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                  {proxyEnabled ? '守护中' : '未启用'}
+                </span>
+              </div>
+            </div>
+          </header>
 
-        <StatusCard
-          apps={displayApps}
-          lastUpdate={lastUpdate}
-          onRefresh={detectProxies}
-          onOpenTerminal={handleOpenTerminal}
-        />
+          <main className="max-w-5xl mx-auto px-6 py-8">
+            <Card className="mb-6">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-primary/10">
+                      {proxyEnabled ? <Lock className="h-6 w-6 text-primary" /> : <Unlock className="h-6 w-6 text-muted-foreground" />}
+                    </div>
+                    <div>
+                      <p className="text-lg font-medium">家长守护中心</p>
+                      <p className="text-sm text-muted-foreground">管理陪伴设置</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handleProxySwitch(!proxyEnabled)}
+                    className={proxyEnabled ? '' : 'bg-muted hover:bg-muted/80'}
+                  >
+                    {proxyEnabled ? '守护已开启' : '开启守护'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-        <div className="text-center text-xs text-muted-foreground/60 pt-2">
-          每 5 分钟自动检测 · Xnetify v0.1.0
-        </div>
-      </div>
+            <Tabs defaultValue="mode" className="w-full">
+              <TabsList className="grid w-full grid-cols-5">
+                <TabsTrigger value="mode">守护模式</TabsTrigger>
+                <TabsTrigger value="sites">推荐内容</TabsTrigger>
+                <TabsTrigger value="time">时间管理</TabsTrigger>
+                <TabsTrigger value="rules">网址规则</TabsTrigger>
+                <TabsTrigger value="tun">网络模式</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mode" className="mt-6">
+                <ModeSwitch />
+              </TabsContent>
+              <TabsContent value="sites" className="mt-6">
+                <RecommendedSites />
+              </TabsContent>
+              <TabsContent value="time" className="mt-6">
+                <TimeRules />
+              </TabsContent>
+              <TabsContent value="rules" className="mt-6">
+                <UrlRules />
+              </TabsContent>
+              <TabsContent value="tun" className="mt-6">
+                <TunToggle />
+              </TabsContent>
+            </Tabs>
+          </main>
+
+          <footer className="text-center py-4 text-sm text-muted-foreground">
+            成长守护
+          </footer>
+        </>
+      )}
 
       <Toaster />
     </div>

@@ -24,3 +24,10 @@ futures = "0.3"
 reqwest = { version = "0.12", features = ["socks", "rustls-tls"] }
 dirs = "6"
 
+# TUN device support
+tun = { version = "0.8", features = ["async"] }
+ipnetwork = "0.20"
+log = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+env_logger = "0.11"
+
